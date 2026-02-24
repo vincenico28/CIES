@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Bell, User, ChevronDown, Home, Users, MessageSquare, FileText, ClipboardList, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ThemeToggle from '@/components/ui/theme-toggle';
 import { useAuth } from '@/hooks/useAuth';
 import {
   DropdownMenu,
@@ -70,6 +71,7 @@ export function Header() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative hidden sm:flex">
             <Bell className="h-5 w-5" />
