@@ -240,11 +240,11 @@ export default function Index() {
               return (
                 <motion.div key={index} variants={itemVariants}>
                   <Link to={service.href} className="block h-full">
-                    <div className="service-card h-full group">
-                      <div className={`h-14 w-14 rounded-xl ${service.color} flex items-center justify-center mb-4`}>
+                    <div className="service-card h-full group transform-gpu will-change-transform transition-transform duration-300 ease-out hover:-translate-y-2 hover:scale-105 hover:shadow-2xl hover:shadow-primary/20">
+                      <div className={`h-14 w-14 rounded-xl ${service.color} flex items-center justify-center mb-4 transition-transform duration-300 group-hover:scale-110`}> 
                         <Icon className="h-7 w-7" />
                       </div>
-                      <h3 className="font-display font-semibold text-xl text-foreground mb-2 group-hover:text-primary transition-colors">
+                      <h3 className="font-display font-semibold text-xl text-foreground mb-2 transition-colors duration-200 group-hover:text-primary">
                         {service.title}
                       </h3>
                       <p className="text-muted-foreground text-sm leading-relaxed mb-4">
