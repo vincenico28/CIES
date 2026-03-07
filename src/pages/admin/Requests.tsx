@@ -7,9 +7,10 @@ import {
   CheckCircle,
   AlertCircle,
   XCircle,
-  Eye,
   MoreHorizontal,
+  Download,
 } from "lucide-react";
+import { generateCertificatePdf } from "@/lib/certificatePdf";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -48,9 +49,11 @@ interface CertificateRequest {
   certificate_type: string;
   status: RequestStatus;
   requestor_name: string;
+  requestor_address: string | null;
   purpose: string;
   created_at: string;
   updated_at: string;
+  certificate_number: string | null;
 }
 
 const statusConfig = {
@@ -102,7 +105,7 @@ export default function AdminRequests() {
 
       const { data: requestsData } = await supabase
         .from("certificate_requests")
-        .select("id, certificate_type, status, requestor_name, purpose, created_at, updated_at")
+        .select("id, certificate_type, status, requestor_name, requestor_address, purpose, created_at, updated_at, certificate_number")
         .order("created_at", { ascending: false });
 
       if (requestsData) setRequests(requestsData);
@@ -113,7 +116,24 @@ export default function AdminRequests() {
     }
   };
 
-  const updateRequestStatus = async (requestId: string, newStatus: RequestStatus) => {
+  const handleDownloadCertificate = async (request: CertificateRequest) => {
+    const issuedDate = new Date(request.created_at).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    await generateCertificatePdf({
+      certificateType: request.certificate_type.replace("_", " "),
+      requestorName: request.requestor_name,
+      requestorAddress: request.requestor_address ?? "",
+      purpose: request.purpose,
+      certificateNumber: request.certificate_number,
+      issuedDate,
+    });
+    toast({ title: "Certificate downloaded", description: "PDF certificate has been saved." });
+  };
+
+  const updateRequestStatus = async (requestId: string, newStatus: RequestStatus, request?: CertificateRequest) => {
     try {
       const { error } = await supabase
         .from("certificate_requests")
@@ -123,6 +143,18 @@ export default function AdminRequests() {
       if (error) throw error;
 
       toast({ title: "Status Updated", description: `Request status changed to ${newStatus}` });
+      if (newStatus === "completed" && request) {
+        const issuedDate = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+        await generateCertificatePdf({
+          certificateType: request.certificate_type.replace("_", " "),
+          requestorName: request.requestor_name,
+          requestorAddress: request.requestor_address ?? "",
+          purpose: request.purpose,
+          certificateNumber: request.certificate_number,
+          issuedDate,
+        });
+        toast({ title: "Certificate generated", description: "PDF certificate has been downloaded." });
+      }
       fetchData();
     } catch (error) {
       console.error("Error updating status:", error);
@@ -241,9 +273,14 @@ export default function AdminRequests() {
                                 <DropdownMenuItem onClick={() => updateRequestStatus(request.id, "approved")}>
                                   <CheckCircle className="h-4 w-4 mr-2" /> Approve
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => updateRequestStatus(request.id, "completed")}>
+                                <DropdownMenuItem onClick={() => updateRequestStatus(request.id, "completed", request)}>
                                   <CheckCircle className="h-4 w-4 mr-2" /> Complete
                                 </DropdownMenuItem>
+                                {request.status === "completed" && (
+                                  <DropdownMenuItem onClick={() => handleDownloadCertificate(request)}>
+                                    <Download className="h-4 w-4 mr-2" /> Download certificate (PDF)
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={() => updateRequestStatus(request.id, "rejected")} className="text-destructive">
                                   <XCircle className="h-4 w-4 mr-2" /> Reject

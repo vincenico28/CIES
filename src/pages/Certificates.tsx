@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { FileText, Plus, Clock, CheckCircle, XCircle, AlertCircle, Send } from "lucide-react";
+import { FileText, Plus, Clock, CheckCircle, XCircle, AlertCircle, Send, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { generateCertificatePdf } from "@/lib/certificatePdf";
 
 const certificateTypes = [
   { value: "clearance", label: "Barangay Clearance" },
@@ -42,6 +43,8 @@ interface CertificateRequest {
   purpose: string;
   created_at: string;
   certificate_number: string | null;
+  requestor_name?: string;
+  requestor_address?: string | null;
 }
 
 const statusConfig = {
@@ -103,7 +106,7 @@ export default function Certificates() {
       // Fetch requests
       const { data: requestsData } = await supabase
         .from("certificate_requests")
-        .select("id, certificate_type, status, purpose, created_at, certificate_number")
+        .select("id, certificate_type, status, purpose, created_at, certificate_number, requestor_name, requestor_address")
         .eq("user_id", user!.id)
         .order("created_at", { ascending: false });
 
@@ -115,6 +118,32 @@ export default function Certificates() {
     } finally {
       setLoadingRequests(false);
     }
+  };
+
+  const handleDownloadCertificate = async (request: CertificateRequest) => {
+    if (request.status !== "completed") {
+      toast({
+        variant: "destructive",
+        title: "Certificate not ready",
+        description: "Certificates can be downloaded once the request is marked as completed.",
+      });
+      return;
+    }
+
+    const issuedDate = new Date(request.created_at).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    await generateCertificatePdf({
+      certificateType: request.certificate_type.replace("_", " "),
+      requestorName: request.requestor_name || (profile ? `${profile.first_name} ${profile.last_name}` : "Resident"),
+      requestorAddress: request.requestor_address ?? profile?.address ?? "",
+      purpose: request.purpose,
+      certificateNumber: request.certificate_number,
+      issuedDate,
+    });
   };
 
   const onSubmit = async (data: RequestFormData) => {
@@ -282,6 +311,7 @@ export default function Certificates() {
                         <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Purpose</th>
                         <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Date</th>
                         <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
+                        <th className="text-right px-4 py-3 text-sm font-medium text-muted-foreground">Certificate</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -311,6 +341,22 @@ export default function Certificates() {
                                 <StatusIcon className="h-3.5 w-3.5" />
                                 {status?.label}
                               </span>
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              {request.status === "completed" ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleDownloadCertificate(request)}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download PDF
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  Available when completed
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
