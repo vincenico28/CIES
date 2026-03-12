@@ -214,7 +214,7 @@ export default function Auth() {
       } else {
         toast({
           title: "Account created!",
-          description: "Welcome to the Barangay Web System. You can now access all services.",
+          description: "Welcome to the Barangay Web System. Please check your email for confirmation.",
         });
       }
     } catch (error) {

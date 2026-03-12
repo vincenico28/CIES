@@ -40,7 +40,7 @@ const A4_HEIGHT = 297;
 const CONTENT_WIDTH = A4_WIDTH - MARGIN * 2;
 const BORDER_MARGIN = 10;
 /** Y position where the bottom block (Date Issued + Authorized Signature) starts — fixed at bottom */
-const BOTTOM_BLOCK_TOP = A4_HEIGHT - 35;
+const BOTTOM_BLOCK_TOP = A4_HEIGHT - 35 ;
 
 function drawCertificateBorder(doc: jsPDF) {
   // Subtle official border (print-friendly)
