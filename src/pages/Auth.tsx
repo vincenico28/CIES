@@ -233,7 +233,16 @@ export default function Auth() {
         });
 
         if (otpError) {
-          toast({ variant: "destructive", title: "Email failed", description: "Unable to send verification email. Please try again." });
+          console.error("Supabase OTP error:", otpError);
+          const description = otpError.message
+            ? `${otpError.message}`
+            : "Unable to send verification email. Please try again.";
+
+          toast({
+            variant: "destructive",
+            title: "Email failed",
+            description,
+          });
           setPendingEmail2FA(false);
         }
 
