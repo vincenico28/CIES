@@ -19,21 +19,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
+    const checkMagicLinkError = async () => {
+      const hash = window.location.hash;
+      if (!hash) return;
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const error = params.get("error");
+      if (!error) return;
+
+      // If the user lands on the app with an expired/invalid magic link,
+      // make sure we don't keep any existing session open.
+      await supabase.auth.signOut();
+
+      // Clean up the URL so the error doesn't keep triggering on reload.
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    };
+
+    // Set up auth state listener first
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
     });
+
+    // Then check for existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+
+      await checkMagicLinkError();
+    });
+
+    // In case the URL already contains an error before auth state resolves.
+    checkMagicLinkError();
 
     return () => subscription.unsubscribe();
   }, []);
