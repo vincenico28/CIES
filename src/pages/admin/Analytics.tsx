@@ -1,23 +1,22 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import {
-  FileText,
-  MessageSquare,
-  ClipboardList,
-  Users,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  TrendingUp,
-} from "lucide-react";
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  Cell,
+} from "recharts";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
-import { StatsCard } from "@/components/dashboard/StatsCard";
+import { ChartContainer, ChartTooltipContent, ChartLegendContent } from "@/components/ui/chart";
 
 interface Profile {
   first_name: string;
@@ -50,6 +49,24 @@ export default function AdminAnalytics() {
   const [surveyResponseCount, setSurveyResponseCount] = useState(0);
   const [userCount, setUserCount] = useState(0);
   const [loadingData, setLoadingData] = useState(true);
+
+  const overviewData = [
+    { name: "Requests", value: requestStats.total, color: "#4F46E5" },
+    { name: "Feedback", value: feedbackStats.total, color: "#0EA5E9" },
+    { name: "Users", value: userCount, color: "#14B8A6" },
+    { name: "Surveys", value: surveyCount, color: "#F97316" },
+  ];
+
+  const requestStatusData = [
+    { name: "Pending", value: requestStats.pending, color: "#F59E0B" },
+    { name: "Processing", value: requestStats.processing, color: "#0EA5E9" },
+    { name: "Completed", value: requestStats.completed, color: "#22C55E" },
+  ];
+
+  const feedbackStatusData = [
+    { name: "Pending", value: feedbackStats.pending, color: "#F59E0B" },
+    { name: "Resolved", value: feedbackStats.resolved, color: "#22C55E" },
+  ];
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -142,7 +159,7 @@ export default function AdminAnalytics() {
     navigate("/");
   };
 
-  if (authLoading || roleLoading) {
+  if (authLoading || roleLoading || loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -164,45 +181,113 @@ export default function AdminAnalytics() {
         />
 
         <div className="p-6 space-y-8">
-          {/* Overview Stats */}
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground mb-4">Overview</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatsCard label="Total Requests" value={requestStats.total} icon={FileText} color="text-primary" index={0} />
-              <StatsCard label="Pending Requests" value={requestStats.pending} icon={Clock} color="text-warning" index={1} />
-              <StatsCard label="Total Feedback" value={feedbackStats.total} icon={MessageSquare} color="text-accent" index={2} />
-              <StatsCard label="Total Users" value={userCount} icon={Users} color="text-info" index={3} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="bg-card rounded-xl border border-border p-6">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Totals</h3>
+                <ChartContainer className="h-72" config={{ value: { label: "Total" } }}>
+                  <BarChart data={overviewData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" tick={{ fill: "var(--muted-foreground)" }} />
+                    <YAxis tick={{ fill: "var(--muted-foreground)" }} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Legend content={<ChartLegendContent />} />
+                    <Bar dataKey="value" name="Total">
+                      {overviewData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              </div>
+
+              <div className="bg-card rounded-xl border border-border p-6">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Request Status</h3>
+                <ChartContainer
+                  className="h-72"
+                  config={{
+                    Pending: { label: "Pending" },
+                    Processing: { label: "Processing" },
+                    Completed: { label: "Completed" },
+                  }}
+                >
+                  <BarChart data={requestStatusData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" tick={{ fill: "var(--muted-foreground)" }} />
+                    <YAxis tick={{ fill: "var(--muted-foreground)" }} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Legend content={<ChartLegendContent />} />
+                    <Bar dataKey="value" name="Requests">
+                      {requestStatusData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              </div>
             </div>
           </section>
 
-          {/* Certificate Request Stats */}
-          <section>
-            <h2 className="font-display text-lg font-semibold text-foreground mb-4">Certificate Requests</h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatsCard label="Total" value={requestStats.total} icon={FileText} color="text-primary" index={0} />
-              <StatsCard label="Pending" value={requestStats.pending} icon={Clock} color="text-warning" index={1} />
-              <StatsCard label="Processing" value={requestStats.processing} icon={AlertCircle} color="text-info" index={2} />
-              <StatsCard label="Completed" value={requestStats.completed} icon={CheckCircle} color="text-accent" index={3} />
-            </div>
-          </section>
-
-          {/* Feedback Stats */}
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground mb-4">Feedback & Grievances</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatsCard label="Total" value={feedbackStats.total} icon={MessageSquare} color="text-primary" index={0} />
-              <StatsCard label="Pending" value={feedbackStats.pending} icon={Clock} color="text-warning" index={1} />
-              <StatsCard label="Resolved" value={feedbackStats.resolved} icon={CheckCircle} color="text-accent" index={2} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-card rounded-xl border border-border p-6">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Status Breakdown</h3>
+                <ChartContainer
+                  className="h-72"
+                  config={{
+                    Pending: { label: "Pending" },
+                    Resolved: { label: "Resolved" },
+                  }}
+                >
+                  <BarChart data={feedbackStatusData} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" tick={{ fill: "var(--muted-foreground)" }} />
+                    <YAxis tick={{ fill: "var(--muted-foreground)" }} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Legend content={<ChartLegendContent />} />
+                    <Bar dataKey="value" name="Feedback">
+                      {feedbackStatusData.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              </div>
             </div>
           </section>
 
           {/* Surveys */}
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground mb-4">Surveys</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <StatsCard label="Total Surveys" value={surveyCount} icon={ClipboardList} color="text-primary" index={0} />
-              <StatsCard label="Total Responses" value={surveyResponseCount} icon={CheckCircle} color="text-accent" index={1} />
-              <StatsCard label="Growth" value="+12%" icon={TrendingUp} color="text-warning" index={2} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-card rounded-xl border border-border p-6">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Survey Activity</h3>
+                <ChartContainer className="h-72" config={{ value: { label: "Surveys" } }}>
+                  <BarChart
+                    data={[
+                      { name: "Surveys", value: surveyCount, color: "#F97316" },
+                      { name: "Responses", value: surveyResponseCount, color: "#14B8A6" },
+                    ]}
+                    margin={{ top: 16, right: 12, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="name" tick={{ fill: "var(--muted-foreground)" }} />
+                    <YAxis tick={{ fill: "var(--muted-foreground)" }} />
+                    <Tooltip content={<ChartTooltipContent />} />
+                    <Legend content={<ChartLegendContent />} />
+                    <Bar dataKey="value" name="Surveys">
+                      {[
+                        { name: "Surveys", value: surveyCount, color: "#F97316" },
+                        { name: "Responses", value: surveyResponseCount, color: "#14B8A6" },
+                      ].map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ChartContainer>
+              </div>
             </div>
           </section>
         </div>
