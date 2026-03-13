@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -155,15 +156,18 @@ export default function Auth() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [signupPassword, setSignupPassword] = useState("");
+  const [pendingEmail2FA, setPendingEmail2FA] = useState(false);
+  const [pendingRole, setPendingRole] = useState<"admin" | "super_admin" | null>(null);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, signIn, signUp } = useAuth();
 
   useEffect(() => {
-    if (user) {
+    if (user && !pendingEmail2FA && !isLoggingIn) {
       navigate("/dashboard");
     }
-  }, [user, navigate]);
+  }, [user, navigate, pendingEmail2FA, isLoggingIn]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -177,6 +181,8 @@ export default function Auth() {
 
   const handleLogin = async (data: LoginFormData) => {
     setIsSubmitting(true);
+    setIsLoggingIn(true);
+
     try {
       const { error } = await signIn(data.email, data.password);
 
@@ -188,13 +194,58 @@ export default function Auth() {
           message = "Please confirm your email address before signing in.";
         }
         toast({ variant: "destructive", title: "Sign In Failed", description: message });
-      } else {
-        toast({ title: "Welcome back!", description: "You have successfully signed in." });
+        return;
       }
+
+      const {
+        data: { user: signedInUser },
+        error: sessionError,
+      } = await supabase.auth.getUser();
+
+      if (sessionError || !signedInUser) {
+        toast({ variant: "destructive", title: "Sign In Failed", description: "Unable to verify user session." });
+        return;
+      }
+
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", signedInUser.id)
+        .maybeSingle();
+
+      if (roleError) {
+        console.error("Error fetching user role:", roleError);
+      }
+
+      const role = roleData?.role;
+      if (role === "admin" || role === "super_admin") {
+        // Require a secondary email-based verification for admin/super admin accounts
+        await supabase.auth.signOut();
+        setPendingRole(role);
+        setPendingEmail2FA(true);
+        toast({ title: "Additional verification required", description: "A login link has been sent to your email. Please click it to continue." });
+
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: data.email,
+          options: {
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+          },
+        });
+
+        if (otpError) {
+          toast({ variant: "destructive", title: "Email failed", description: "Unable to send verification email. Please try again." });
+          setPendingEmail2FA(false);
+        }
+
+        return;
+      }
+
+      toast({ title: "Welcome back!", description: "You have successfully signed in." });
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "An unexpected error occurred." });
     } finally {
       setIsSubmitting(false);
+      setIsLoggingIn(false);
     }
   };
 
@@ -222,6 +273,14 @@ export default function Auth() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCancelEmail2FA = async () => {
+    setPendingEmail2FA(false);
+    setPendingRole(null);
+    setIsLoggingIn(false);
+    await supabase.auth.signOut();
+    navigate("/auth");
   };
 
   return (
@@ -292,15 +351,39 @@ export default function Auth() {
 
           <div className="text-center mb-8">
             <h2 className="font-display text-2xl font-bold text-foreground mb-2">
-              {isLogin ? "Welcome Back" : "Create Account"}
+              {pendingEmail2FA ? "Verify Your Email" : isLogin ? "Welcome Back" : "Create Account"}
             </h2>
             <p className="text-muted-foreground">
-              {isLogin
+              {pendingEmail2FA
+                ? `A verification link has been sent to the email associated with your ${
+                    pendingRole === "super_admin" ? "Super Admin" : "Admin"
+                  } account. Click it to complete sign in.`
+                : isLogin
                 ? "Sign in to access your barangay services"
                 : "Register to start using barangay services"}
             </p>
           </div>
 
+          {pendingEmail2FA ? (
+            <div className="space-y-5 rounded-lg border border-border/60 bg-muted/50 p-6">
+              <div className="flex items-center justify-center">
+                <Mail className="h-6 w-6 text-primary" />
+              </div>
+              <p className="text-center text-sm text-muted-foreground">
+                {pendingRole
+                  ? `Check your inbox for a message for your ${
+                      pendingRole === "super_admin" ? "Super Admin" : "Admin"
+                    } account. If you don't see it, check your spam folder.`
+                  : "Check your inbox for a message from us. If you don't see it, check your spam folder."}
+              </p>
+              <div className="flex gap-2">
+                <Button className="flex-1" onClick={handleCancelEmail2FA} variant="outline">
+                  Cancel &amp; Sign Out
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>          
           {/* Auth Tabs */}
           <div className="flex gap-2 p-1 bg-muted rounded-lg mb-6">
             <button
@@ -482,6 +565,7 @@ export default function Auth() {
               </Button>
             </form>
           )}
+          </>) }
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             By continuing, you agree to our{" "}
