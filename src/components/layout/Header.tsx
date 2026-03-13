@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Bell, User, ChevronDown, Home, Users, MessageSquare, FileText, ClipboardList, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from '@/components/ui/theme-toggle';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,7 @@ const navItems = [
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const location = useLocation();
   const { user, signOut } = useAuth();
 
@@ -32,6 +34,40 @@ export function Header() {
       // noop
     }
   };
+
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+
+    const fetchUnread = async () => {
+      try {
+        const { data } = await supabase
+          .from("notifications")
+          .select("is_read_by, expires_at")
+          .order("created_at", { ascending: false });
+
+        if (!data) {
+          setUnreadCount(0);
+          return;
+        }
+
+        const now = new Date();
+        const count = data.filter((n) => {
+          const expired = n.expires_at ? new Date(n.expires_at) <= now : false;
+          const isRead = Array.isArray(n.is_read_by) && n.is_read_by.includes(user.id);
+          return !expired && !isRead;
+        }).length;
+
+        setUnreadCount(count);
+      } catch (error) {
+        console.error("Error fetching unread notifications:", error);
+      }
+    };
+
+    fetchUnread();
+  }, [user]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -73,11 +109,15 @@ export function Header() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative hidden sm:flex">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
-              3
-            </span>
+          <Button variant="ghost" size="icon" asChild className="relative hidden sm:flex">
+            <Link to="/notifications" className="relative">
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 ? (
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-destructive-foreground flex items-center justify-center">
+                  {unreadCount}
+                </span>
+              ) : null}
+            </Link>
           </Button>
 
           {/* User Menu */}
