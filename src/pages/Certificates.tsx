@@ -4,15 +4,17 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { FileText, Plus, Clock, CheckCircle, XCircle, AlertCircle, Send, Download } from "lucide-react";
+import { FileText, Plus, Clock, CheckCircle, XCircle, AlertCircle, Send, Download, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useIDVerification } from "@/hooks/useIDVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { generateCertificatePdf } from "@/lib/certificatePdf";
@@ -58,6 +60,7 @@ const statusConfig = {
 export default function Certificates() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { isVerified, status, loading: verificationLoading } = useIDVerification();
   const { toast } = useToast();
   const [requests, setRequests] = useState<CertificateRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -177,7 +180,7 @@ export default function Certificates() {
     }
   };
 
-  if (loading) {
+  if (loading || verificationLoading) {
     return (
       <MainLayout>
         <div className="min-h-[60vh] flex items-center justify-center">
@@ -196,9 +199,29 @@ export default function Certificates() {
               <h1 className="font-display text-3xl font-bold text-foreground">Certificates & Documents</h1>
               <p className="text-muted-foreground mt-1">Request and track your barangay certificates</p>
             </div>
+          </div>
+
+          {/* ID Verification Required Alert */}
+          {!isVerified && (
+            <Alert className="border-l-4 border-l-yellow-500 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800">
+                <span className="font-semibold">ID Verification Required:</span> You need to upload and verify a valid ID before requesting certificates.{" "}
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-yellow-800 underline"
+                  onClick={() => navigate("/registry")}
+                >
+                  Complete verification now
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex justify-end mb-4">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="lg">
+                <Button size="lg" disabled={!isVerified}>
                   <Plus className="h-5 w-5 mr-2" />
                   New Request
                 </Button>
@@ -271,8 +294,6 @@ export default function Certificates() {
               </DialogContent>
             </Dialog>
           </div>
-
-          {/* Certificate Types */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {certificateTypes.map((type, index) => (
               <motion.button

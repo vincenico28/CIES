@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ClipboardList, Calendar, Users, CheckCircle, Clock, ChevronRight } from "lucide-react";
+import { ClipboardList, Calendar, Users, CheckCircle, Clock, ChevronRight, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useIDVerification } from "@/hooks/useIDVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -39,6 +41,7 @@ interface SurveyResponse {
 export default function Surveys() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { isVerified, status, loading: verificationLoading } = useIDVerification();
   const { toast } = useToast();
   const [surveys, setSurveys] = useState<Survey[]>([]);
   const [completedSurveyIds, setCompletedSurveyIds] = useState<string[]>([]);
@@ -208,7 +211,7 @@ export default function Surveys() {
     }
   };
 
-  if (loading) {
+  if (loading || verificationLoading) {
     return (
       <MainLayout>
         <div className="min-h-[60vh] flex items-center justify-center">
@@ -235,6 +238,23 @@ export default function Surveys() {
               Your voice matters! Participate in community surveys and help shape the future of our barangay.
             </p>
           </div>
+
+          {/* ID Verification Required Alert */}
+          {!isVerified && (
+            <Alert className="border-l-4 border-l-yellow-500 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800">
+                <span className="font-semibold">ID Verification Required:</span> You need to upload and verify a valid ID before participating in surveys.{" "}
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-yellow-800 underline"
+                  onClick={() => navigate("/registry")}
+                >
+                  Complete verification now
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {loadingSurveys ? (
             <div className="flex items-center justify-center py-12">
@@ -294,7 +314,7 @@ export default function Surveys() {
                             <span className="px-3 py-1 rounded-full bg-accent/10 text-accent text-xs font-medium">
                               Active
                             </span>
-                            <Button onClick={() => openSurvey(survey)}>
+                            <Button onClick={() => openSurvey(survey)} disabled={!isVerified}>
                               Take Survey
                               <ChevronRight className="h-4 w-4 ml-1" />
                             </Button>

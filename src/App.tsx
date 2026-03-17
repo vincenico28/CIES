@@ -21,6 +21,7 @@ import AdminFeedback from "./pages/admin/Feedback";
 import AdminSurveys from "./pages/admin/Surveys";
 import AdminUsers from "./pages/admin/Users";
 import AdminRoles from "./pages/admin/Roles";
+import AdminIDVerification from "./pages/admin/IDVerification";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
             <Route path="/admin/surveys" element={<AdminSurveys />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/roles" element={<AdminRoles />} />
+            <Route path="/admin/id-verification" element={<AdminIDVerification />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useIDVerification } from "@/hooks/useIDVerification";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { FileUpload } from "@/components/shared/FileUpload";
@@ -52,6 +54,7 @@ const statusConfig = {
 export default function Feedback() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { isVerified, status, loading: verificationLoading } = useIDVerification();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedType, setSelectedType] = useState("");
@@ -135,7 +138,7 @@ export default function Feedback() {
     }
   };
 
-  if (loading) {
+  if (loading || verificationLoading) {
     return (
       <MainLayout>
         <div className="min-h-[60vh] flex items-center justify-center">
@@ -159,6 +162,23 @@ export default function Feedback() {
               We value your input. Share your suggestions, report issues, or submit grievances. Your voice helps us improve our services.
             </p>
           </div>
+
+          {/* ID Verification Required Alert */}
+          {!isVerified && (
+            <Alert className="border-l-4 border-l-yellow-500 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800">
+                <span className="font-semibold">ID Verification Required:</span> You need to upload and verify a valid ID before using this service.{" "}
+                <Button
+                  variant="link"
+                  className="h-auto p-0 text-yellow-800 underline"
+                  onClick={() => navigate("/registry")}
+                >
+                  Complete verification now
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Feedback Type Selection */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -267,7 +287,7 @@ export default function Feedback() {
               </div>
 
               <div className="flex justify-end">
-                <Button type="submit" size="lg" disabled={isSubmitting}>
+                <Button type="submit" size="lg" disabled={isSubmitting || !isVerified}>
                   <Send className="h-5 w-5 mr-2" />
                   {isSubmitting ? "Submitting..." : "Submit Feedback"}
                 </Button>

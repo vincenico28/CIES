@@ -4,11 +4,14 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { User, Mail, Phone, MapPin, Calendar, Save } from "lucide-react";
+import { User, Mail, Phone, MapPin, Calendar, Save, FileText, AlertCircle, CheckCircle, Clock, Upload, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +32,9 @@ const profileSchema = z.object({
   city: z.string().optional(),
   province: z.string().optional(),
   zip_code: z.string().optional(),
+  id_type: z.string().optional(),
+  id_number: z.string().optional(),
+  id_expiry_date: z.string().optional(),
 });
 
 type ProfileFormData = z.infer<typeof profileSchema>;
@@ -39,6 +45,11 @@ export default function Registry() {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [isUploadingId, setIsUploadingId] = useState(false);
+  const [idVerificationStatus, setIdVerificationStatus] = useState<"pending" | "approved" | "rejected" | null>(null);
+  const [idDocumentUrl, setIdDocumentUrl] = useState<string | null>(null);
+  const [showIdPreview, setShowIdPreview] = useState(false);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -57,6 +68,9 @@ export default function Registry() {
       city: "",
       province: "",
       zip_code: "",
+      id_type: "",
+      id_number: "",
+      id_expiry_date: "",
     },
   });
 
@@ -96,7 +110,12 @@ export default function Registry() {
           city: data.city || "",
           province: data.province || "",
           zip_code: data.zip_code || "",
+          id_type: data.id_type || "",
+          id_number: data.id_number || "",
+          id_expiry_date: data.id_expiry_date || "",
         });
+        setIdVerificationStatus(data.id_verification_status as "pending" | "approved" | "rejected" | null);
+        setIdDocumentUrl(data.id_document_url);
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
@@ -108,12 +127,14 @@ export default function Registry() {
   const onSubmit = async (data: ProfileFormData) => {
     setIsSubmitting(true);
     try {
+      const updateData: any = {
+        ...data,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from("profiles")
-        .update({
-          ...data,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("user_id", user!.id);
 
       if (error) throw error;
@@ -123,6 +144,64 @@ export default function Registry() {
       toast({ variant: "destructive", title: "Error", description: "Failed to update profile." });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleIdUpload = async (file: File) => {
+    if (!user) return;
+
+    setIsUploadingId(true);
+    try {
+      // Validate file type
+      const allowedTypes = ["image/jpeg", "image/png", "image/gif", "application/pdf"];
+      if (!allowedTypes.includes(file.type)) {
+        toast({ variant: "destructive", title: "Invalid file type", description: "Please upload an image (JPG, PNG, GIF) or PDF." });
+        return;
+      }
+
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ variant: "destructive", title: "File too large", description: "Please upload a file smaller than 5MB." });
+        return;
+      }
+
+      const timestamp = Date.now();
+      const fileName = `${user.id}/id_${timestamp}_${file.name}`;
+
+      // Upload file
+      const { error: uploadError } = await supabase.storage
+        .from("attachments")
+        .upload(fileName, file, { upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from("attachments")
+        .getPublicUrl(fileName);
+
+      // Update profile with ID document URL and reset verification status
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({
+          id_document_url: urlData.publicUrl,
+          id_verification_status: "pending",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", user.id);
+
+      if (updateError) throw updateError;
+
+      setIdDocumentUrl(urlData.publicUrl);
+      setIdVerificationStatus("pending");
+      setIdFile(null);
+
+      toast({ title: "ID uploaded", description: "Your ID has been uploaded and is pending review." });
+    } catch (error) {
+      console.error("Error uploading ID:", error);
+      toast({ variant: "destructive", title: "Upload failed", description: "Failed to upload your ID document." });
+    } finally {
+      setIsUploadingId(false);
     }
   };
 
@@ -287,6 +366,161 @@ export default function Registry() {
                     <Label htmlFor="zip_code">ZIP Code</Label>
                     <Input id="zip_code" {...form.register("zip_code")} />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ID Verification Section */}
+            <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-warning" />
+                </div>
+                <h2 className="font-display text-lg font-semibold">Valid ID Verification</h2>
+              </div>
+
+              {/* Verification Status Alert */}
+              {idVerificationStatus && (
+                <Alert className={`border-l-4 ${
+                  idVerificationStatus === "approved"
+                    ? "border-l-green-500 bg-green-50"
+                    : idVerificationStatus === "rejected"
+                    ? "border-l-red-500 bg-red-50"
+                    : "border-l-yellow-500 bg-yellow-50"
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {idVerificationStatus === "approved" && <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />}
+                    {idVerificationStatus === "rejected" && <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />}
+                    {idVerificationStatus === "pending" && <Clock className="h-5 w-5 text-yellow-600 flex-shrink-0 mt-0.5" />}
+                    <div className="space-y-1">
+                      <p className="font-semibold text-sm capitalize">
+                        {idVerificationStatus === "approved" && "ID Verified"}
+                        {idVerificationStatus === "rejected" && "ID Rejected"}
+                        {idVerificationStatus === "pending" && "Pending Review"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {idVerificationStatus === "approved" && "Your ID has been verified. You can now access all services."}
+                        {idVerificationStatus === "rejected" && "Your ID was rejected. Please upload a valid ID."}
+                        {idVerificationStatus === "pending" && "Your ID is under review. You'll be notified once verification is complete."}
+                      </p>
+                    </div>
+                  </div>
+                </Alert>
+              )}
+
+              {/* ID Type and Number Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="id_type">ID Type</Label>
+                  <Select
+                    value={form.watch("id_type")}
+                    onValueChange={(value) => form.setValue("id_type", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select ID type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="national_id">National ID (PhilID)</SelectItem>
+                      <SelectItem value="passport">Passport</SelectItem>
+                      <SelectItem value="drivers_license">Driver's License</SelectItem>
+                      <SelectItem value="voters_id">Voter's ID</SelectItem>
+                      <SelectItem value="senior_id">Senior Citizen ID</SelectItem>
+                      <SelectItem value="barangay_id">Barangay ID</SelectItem>
+                      <SelectItem value="sss_id">SSS ID</SelectItem>
+                      <SelectItem value="tin_id">TIN ID</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="id_number">ID Number</Label>
+                  <Input id="id_number" {...form.register("id_number")} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="id_expiry_date">ID Expiry Date</Label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                  <Input id="id_expiry_date" type="date" className="pl-10" {...form.register("id_expiry_date")} />
+                </div>
+              </div>
+
+              {/* ID Document Upload */}
+              <div className="space-y-3 border-t pt-6">
+                <Label>Upload ID Document</Label>
+                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center space-y-4">
+                  {idDocumentUrl ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-2">
+                        <FileText className="h-5 w-5 text-primary" />
+                        <span className="text-sm font-medium">ID Document Uploaded</span>
+                      </div>
+                      <Dialog open={showIdPreview} onOpenChange={setShowIdPreview}>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <Eye className="h-4 w-4" />
+                            View Document
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl">
+                          <DialogHeader>
+                            <DialogTitle>ID Document</DialogTitle>
+                          </DialogHeader>
+                          <div className="max-h-[70vh] overflow-auto">
+                            {idDocumentUrl.endsWith(".pdf") ? (
+                              <iframe
+                                src={idDocumentUrl}
+                                className="w-full h-[600px]"
+                              />
+                            ) : (
+                              <img src={idDocumentUrl} alt="ID Document" className="w-full" />
+                            )}
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                      <p className="text-xs text-muted-foreground">
+                        Status: <Badge variant={idVerificationStatus === "approved" ? "default" : idVerificationStatus === "rejected" ? "destructive" : "secondary"}>
+                          {idVerificationStatus || "pending"}
+                        </Badge>
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-center">
+                        <Upload className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Drag and drop your ID here</p>
+                        <p className="text-xs text-muted-foreground">or click to browse</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setIdFile(file);
+                            handleIdUpload(file);
+                          }
+                        }}
+                        disabled={isUploadingId}
+                        className="hidden"
+                        id="id_upload"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => document.getElementById("id_upload")?.click()}
+                        disabled={isUploadingId}
+                      >
+                        {isUploadingId ? "Uploading..." : "Select File"}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Accepted formats: JPG, PNG, GIF, PDF (Max 5MB)
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

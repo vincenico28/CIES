@@ -11,6 +11,7 @@ import {
   Shield,
   BarChart3,
   UserCog,
+  IdCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Database } from "@/integrations/supabase/types";
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { icon: FileText, label: "Manage Requests", href: "/admin/requests", roles: ["staff", "captain", "admin", "super_admin"] },
   { icon: MessageSquare, label: "Manage Feedback", href: "/admin/feedback", roles: ["staff", "captain", "admin", "super_admin"] },
   { icon: ClipboardList, label: "Manage Surveys", href: "/admin/surveys", roles: ["staff", "captain", "admin", "super_admin"] },
+  { icon: IdCard, label: "ID Verification", href: "/admin/id-verification", roles: ["staff", "captain", "admin", "super_admin"] },
   // Admin only
   { icon: UserCog, label: "User Management", href: "/admin/users", roles: ["admin", "super_admin"] },
   { icon: Shield, label: "Role Management", href: "/admin/roles", roles: ["admin", "super_admin"] },

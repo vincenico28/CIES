@@ -219,6 +219,14 @@ export type Database = {
           first_name: string
           gender: string | null
           id: string
+          id_document_url: string | null
+          id_expiry_date: string | null
+          id_number: string | null
+          id_rejection_reason: string | null
+          id_type: string | null
+          id_verification_status: string | null
+          id_verified_at: string | null
+          id_verified_by: string | null
           last_name: string
           middle_name: string | null
           phone: string | null
@@ -240,6 +248,14 @@ export type Database = {
           first_name: string
           gender?: string | null
           id?: string
+          id_document_url?: string | null
+          id_expiry_date?: string | null
+          id_number?: string | null
+          id_rejection_reason?: string | null
+          id_type?: string | null
+          id_verification_status?: string | null
+          id_verified_at?: string | null
+          id_verified_by?: string | null
           last_name: string
           middle_name?: string | null
           phone?: string | null
@@ -261,6 +277,14 @@ export type Database = {
           first_name?: string
           gender?: string | null
           id?: string
+          id_document_url?: string | null
+          id_expiry_date?: string | null
+          id_number?: string | null
+          id_rejection_reason?: string | null
+          id_type?: string | null
+          id_verification_status?: string | null
+          id_verified_at?: string | null
+          id_verified_by?: string | null
           last_name?: string
           middle_name?: string | null
           phone?: string | null
